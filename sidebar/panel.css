@@ -1,0 +1,347 @@
+/* panel.css — barre latérale.
+ *
+ * Le brief impose la contrainte visuelle : deux registres, jamais fusionnés.
+ * Ils ne partagent donc ni fond, ni bordure, ni famille de caractères.
+ *
+ *   Registre A — RELEVÉ   fond papier, réglures, chiffres en chasse fixe
+ *   Registre B — LECTURE  fond retiré, filet hachuré, texte en italique
+ *
+ * Le motif dominant est celui d'un procès-verbal : un libellé, une ligne de
+ * conduite pointillée, un chiffre aligné à droite. Le chiffre est cliquable et
+ * ouvre son comptage. C'est le seul geste de l'interface, et c'est la règle du
+ * projet rendue manipulable : aucun chiffre n'est présenté sans son décompte.
+ */
+
+:root {
+  --papier: #eef1f3;
+  --papier-creux: #e3e8ec;
+  --encre: #16232c;
+  --encre-pale: #5d6d78;
+  --filet: #b9c6ce;
+  --ocre: #8a6a1f;        /* non calculé — ni alerte, ni validation */
+  --constate: #1d4f4a;    /* régime constaté */
+  --mesure: #4a5a7a;      /* régime mesuré */
+  --lecture: #e8e6e0;     /* registre B : autre papier */
+
+  --grotesque: "Inter", "Segoe UI", "Helvetica Neue", system-ui, sans-serif;
+  --chasse: "SF Mono", "DejaVu Sans Mono", "Consolas", ui-monospace, monospace;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --papier: #171c20;
+    --papier-creux: #1e252a;
+    --encre: #dfe6ea;
+    --encre-pale: #8b9aa4;
+    --filet: #3a464e;
+    --ocre: #c6a355;
+    --constate: #6fbdb2;
+    --mesure: #93a8cf;
+    --lecture: #201f1c;
+  }
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  padding: 0 14px 32px;
+  background: var(--papier);
+  color: var(--encre);
+  font: 13px/1.5 var(--grotesque);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ------------------------------------------------------------- en-tête */
+
+.entete {
+  position: sticky; top: 0; z-index: 2;
+  background: var(--papier);
+  padding: 12px 0 8px;
+  border-bottom: 1px solid var(--encre);
+}
+.entete h1 {
+  margin: 0;
+  font-size: 11px; font-weight: 600;
+  letter-spacing: .22em; text-transform: uppercase;
+}
+.question {
+  margin: 6px 0 0;
+  font-size: 14px; line-height: 1.35; font-weight: 500;
+}
+.cartouche {
+  margin-top: 6px;
+  font-family: var(--chasse); font-size: 10.5px;
+  color: var(--encre-pale);
+  font-variant-numeric: tabular-nums;
+}
+
+/* --------------------------------------------------------------- actions */
+
+.actions { display: flex; gap: 6px; margin: 10px 0 4px; flex-wrap: wrap; }
+
+button {
+  font: inherit; font-size: 12px;
+  padding: 6px 10px;
+  color: var(--encre);
+  background: transparent;
+  border: 1px solid var(--encre);
+  border-radius: 0;
+  cursor: pointer;
+}
+button:hover { background: var(--papier-creux); }
+button:focus-visible { outline: 2px solid var(--encre); outline-offset: 2px; }
+button[disabled] { opacity: .4; cursor: default; }
+button.principal { background: var(--encre); color: var(--papier); }
+button.principal:hover { opacity: .85; background: var(--encre); }
+
+/* --------------------------------------------- registre A — le relevé */
+
+section.releve { margin-top: 18px; }
+
+h2 {
+  margin: 22px 0 8px;
+  font-size: 10px; font-weight: 600;
+  letter-spacing: .2em; text-transform: uppercase;
+  color: var(--encre-pale);
+  padding-bottom: 4px;
+  border-bottom: 1px solid var(--filet);
+}
+
+/* Le motif signature : libellé, conduite pointillée, chiffre en chasse fixe. */
+.ligne {
+  display: flex; align-items: baseline; gap: 4px;
+  width: 100%; padding: 5px 0;
+  background: none; border: 0; border-radius: 0;
+  text-align: left; color: inherit;
+  cursor: default;
+}
+.ligne .libelle { flex: 0 1 auto; }
+.ligne .conduite {
+  flex: 1 1 auto; min-width: 12px;
+  border-bottom: 1px dotted var(--filet);
+  transform: translateY(-3px);
+}
+.ligne .chiffre {
+  flex: 0 0 auto;
+  font-family: var(--chasse); font-variant-numeric: tabular-nums;
+  font-size: 13px;
+}
+.ligne.creuse .libelle { padding-left: 14px; color: var(--encre-pale); }
+
+.ligne[aria-expanded] { cursor: pointer; }
+.ligne[aria-expanded]:hover .libelle { text-decoration: underline; }
+.ligne[aria-expanded]::after {
+  content: "＋"; margin-left: 6px;
+  font-size: 10px; color: var(--encre-pale);
+}
+.ligne[aria-expanded="true"]::after { content: "－"; }
+
+/* Le comptage, sous le chiffre. Décalé, en chasse fixe, non éditorialisé. */
+.comptage {
+  margin: 0 0 10px 14px; padding: 8px 10px;
+  background: var(--papier-creux);
+  border-left: 2px solid var(--filet);
+  font-family: var(--chasse); font-size: 11px; line-height: 1.6;
+  color: var(--encre-pale);
+  font-variant-numeric: tabular-nums;
+  white-space: pre-wrap; word-break: break-word;
+}
+.comptage b { color: var(--encre); font-weight: 500; }
+.comptage ul { margin: 6px 0 0; padding-left: 16px; }
+.comptage li { margin: 2px 0; }
+
+.regime { font-size: 10px; letter-spacing: .08em; text-transform: uppercase; }
+.regime.constate { color: var(--constate); }
+.regime.mesure { color: var(--mesure); }
+
+.non-calcule { color: var(--ocre); }
+.non-calcule .chiffre { font-style: italic; }
+
+.avertissement {
+  margin: 20px 0 0; padding-top: 10px;
+  border-top: 1px solid var(--filet);
+  font-size: 11px; line-height: 1.5; color: var(--encre-pale);
+}
+
+/* --------------------------------------------- registre B — la lecture */
+
+section.lecture {
+  margin: 26px -14px 0;
+  padding: 14px;
+  background: var(--lecture);
+  border-top: 1px solid var(--encre);
+  /* Filet hachuré : la lecture est agrafée au dossier, elle n'en fait pas partie. */
+  box-shadow: inset 3px 0 0 repeating-linear-gradient(45deg, var(--filet) 0 2px, transparent 2px 4px);
+}
+section.lecture::before {
+  content: "Registre B — produit par un modèle";
+  display: block; margin-bottom: 8px;
+  font-size: 10px; letter-spacing: .18em; text-transform: uppercase;
+  color: var(--encre-pale);
+}
+section.lecture p { font-style: italic; line-height: 1.6; }
+section.lecture .chiffre { font-family: inherit; font-style: italic; }
+
+/* ------------------------------------------------------------ divers */
+
+.vide {
+  margin: 40px 0; text-align: center;
+  color: var(--encre-pale); font-size: 12px; line-height: 1.6;
+}
+.etat {
+  margin: 8px 0 0; min-height: 16px;
+  font-family: var(--chasse); font-size: 11px; color: var(--encre-pale);
+}
+.etat.erreur { color: var(--ocre); }
+
+.sources { margin: 0; padding: 0; list-style: none; }
+.sources li {
+  padding: 7px 0; border-bottom: 1px solid var(--filet);
+  font-size: 12px; line-height: 1.4;
+}
+.sources .meta {
+  display: block; margin-top: 2px;
+  font-family: var(--chasse); font-size: 10.5px; color: var(--encre-pale);
+  font-variant-numeric: tabular-nums;
+}
+.sources .sans-date { color: var(--ocre); font-style: italic; }
+
+label { display: block; margin: 10px 0 3px; font-size: 11px; color: var(--encre-pale); }
+input, textarea, select {
+  width: 100%; padding: 6px 8px;
+  font: inherit; font-size: 12px;
+  color: var(--encre); background: var(--papier-creux);
+  border: 1px solid var(--filet); border-radius: 0;
+}
+input:focus, textarea:focus { outline: 2px solid var(--encre); outline-offset: -1px; }
+textarea { resize: vertical; min-height: 44px; }
+
+@media (prefers-reduced-motion: reduce) {
+  * { transition: none !important; animation: none !important; }
+}
+
+/* ------------------------------------------------ formulaires en page
+ * prompt() ne fonctionne pas dans un panneau d'extension Firefox : toute
+ * saisie se fait ici. */
+
+.panneau {
+  margin: 12px 0;
+  padding: 12px;
+  background: var(--papier-creux);
+  border: 1px solid var(--filet);
+  border-left: 3px solid var(--encre);
+}
+.panneau .actions { margin-bottom: 0; }
+.panneau .note {
+  margin: 8px 0 0;
+  font-size: 11px; line-height: 1.45; color: var(--encre-pale);
+}
+
+/* Page visée par le versement : toujours visible, pour qu'on sache ce qu'on verse. */
+.cible {
+  margin: 4px 0 0;
+  font-family: var(--chasse); font-size: 10.5px;
+  color: var(--encre-pale);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.cible.refusee { color: var(--ocre); }
+
+#choix-dossier { margin-top: 6px; }
+
+/* Portée du relevé : dit d'emblée ce que le corpus permet de mesurer. */
+.portee {
+  margin: 14px 0 0; padding: 8px 10px;
+  border-left: 2px solid var(--ocre);
+  background: var(--papier-creux);
+  font-size: 11.5px; line-height: 1.5; color: var(--encre-pale);
+}
+
+/* Registre B — comparaison des deux bras. Deux colonnes de même poids visuel :
+ * l'expérience n'a de sens que si aucune n'est présentée comme la bonne. */
+.bras { margin-top: 12px; }
+.bras h3 {
+  margin: 0 0 6px;
+  font-size: 10px; font-weight: 600; letter-spacing: .16em; text-transform: uppercase;
+  color: var(--encre-pale);
+}
+.bras .provenance {
+  font-family: var(--chasse); font-size: 10px; color: var(--encre-pale);
+  margin: 0 0 8px; font-variant-numeric: tabular-nums;
+}
+.bloc-lecture { margin: 0 0 12px; }
+.bloc-lecture > .titre {
+  font-size: 10px; letter-spacing: .14em; text-transform: uppercase; color: var(--encre-pale);
+}
+.enonce { margin: 4px 0; padding-left: 10px; border-left: 1px solid var(--filet); }
+.etiquette {
+  display: inline-block; margin-right: 6px;
+  font-family: var(--chasse); font-size: 9px; letter-spacing: .08em; text-transform: uppercase;
+  padding: 1px 4px; border: 1px solid currentColor;
+}
+.etiquette.affirme { color: var(--constate); }
+.etiquette.infere { color: var(--mesure); }
+.etiquette.hypothese { color: var(--ocre); }
+.etiquette.speculation { color: var(--encre-pale); }
+.ecartees {
+  margin-top: 8px; padding: 6px 8px;
+  background: var(--papier-creux); border-left: 2px solid var(--ocre);
+  font-family: var(--chasse); font-size: 10px; color: var(--encre-pale);
+}
+label input[type="checkbox"] { width: auto; margin-right: 6px; }
+
+/* Pipeline : la matrice ACH est le seul tableau de l'interface. Elle mérite
+ * de l'être — c'est la seule vue où l'on voit une hypothèse se faire réfuter. */
+.etape { padding-top: 10px; border-top: 1px dotted var(--filet); }
+.etape.validee { box-shadow: inset 3px 0 0 var(--constate); padding-left: 8px; }
+
+table.matrice {
+  width: 100%; margin: 8px 0; border-collapse: collapse;
+  font-family: var(--chasse); font-size: 10.5px;
+}
+table.matrice th, table.matrice td {
+  padding: 3px 4px; border: 1px solid var(--filet); text-align: center;
+}
+table.matrice td:first-child, table.matrice th:first-child {
+  text-align: left; max-width: 150px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+td.case.C { color: var(--constate); }
+td.case.I { color: var(--ocre); font-weight: 600; }
+td.case.N { color: var(--encre-pale); }
+td.case.manquante { background: repeating-linear-gradient(45deg,
+  transparent 0 3px, var(--filet) 3px 4px); }
+
+/* Source enregistrée dont le corps n'a pas pu être extrait. Elle compte pour la
+ * chronologie et les liens, pas pour le texte — et ça doit se voir. */
+.sources li.sans-corps { box-shadow: inset 2px 0 0 var(--ocre); padding-left: 8px; }
+
+/* Journal d'exécution : replié par défaut, mais toujours là. Un message d'état
+ * seul disparaît au clic suivant, et emporte avec lui la cause de la panne. */
+#trace-boite { margin: 6px 0 0; }
+#trace-boite summary {
+  cursor: pointer; list-style: none;
+  font-size: 10px; letter-spacing: .14em; text-transform: uppercase;
+  color: var(--encre-pale);
+}
+#trace-boite summary::-webkit-details-marker { display: none; }
+#trace-boite summary::before { content: "▸ "; }
+#trace-boite[open] summary::before { content: "▾ "; }
+ol.trace {
+  margin: 6px 0 0; padding: 6px 8px;
+  list-style: none;
+  background: var(--papier-creux); border-left: 2px solid var(--filet);
+  font-family: var(--chasse); font-size: 10px; line-height: 1.5;
+  color: var(--encre-pale);
+  max-height: 160px; overflow: auto;
+}
+ol.trace li.erreur { color: var(--ocre); }
+
+/* Étape 2 — cotation Admiralty, saisie à la main. Deux sélecteurs compacts,
+ * sans valeur par défaut : « non cotée » est une information. */
+.cotation { display: flex; gap: 4px; align-items: center; margin-top: 4px; flex-wrap: wrap; }
+.cotation select {
+  width: auto; max-width: 46%;
+  padding: 2px 4px; font-size: 10.5px;
+  font-family: var(--chasse);
+}
