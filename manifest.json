@@ -1,0 +1,48 @@
+{
+  "manifest_version": 3,
+  "name": "Constat",
+  "version": "0.1.0",
+  "description": "Ouvrez un dossier sur une question, versez-y les pages que vous lisez, obtenez un relevé de ce que le corpus contient et de ce qu'il tait.",
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "constat@visiondufutur.com",
+      "strict_min_version": "140.0",
+      "data_collection_permissions": {
+        "required": [
+          "websiteContent",
+          "authenticationInfo"
+        ]
+      }
+    }
+  },
+  "background": {
+    "scripts": [
+      "background/index.js"
+    ]
+  },
+  "sidebar_action": {
+    "default_title": "Constat",
+    "default_panel": "sidebar/panel.html"
+  },
+  "permissions": [
+    "storage",
+    "unlimitedStorage",
+    "tabs",
+    "menus",
+    "scripting",
+    "downloads"
+  ],
+  "optional_host_permissions": [
+    "*://*/*"
+  ],
+  "host_permissions": [
+    "https://api.anthropic.com/*",
+    "https://api.openai.com/*",
+    "https://generativelanguage.googleapis.com/*",
+    "https://api.mistral.ai/*"
+  ],
+  "icons": {
+    "48": "sidebar/icone-48.png",
+    "96": "sidebar/icone-96.png"
+  }
+}
