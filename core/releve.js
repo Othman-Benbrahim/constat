@@ -67,6 +67,19 @@ export function corroboration(sources, grappes) {
 
 /* --------------------------------------------------------------- § 6.2 */
 
+/**
+ * Répartition du corpus par provenance.
+ *
+ * Un corpus assemblé par lecture et un corpus assemblé par moteur n'ont pas le
+ * même biais de sélection. Tant que les deux populations coexistent, le total
+ * ne suffit pas : il faut pouvoir lire chaque comptage séparément.
+ */
+export function populations(sources) {
+  const out = { lecture: [], recherche: [] };
+  for (const s of sources) out[s.provenance === 'recherche' ? 'recherche' : 'lecture'].push(s);
+  return out;
+}
+
 export function chronologie(sources) {
   const datees = sources.filter((s) => s.datePubliee)
     .sort((a, b) => a.datePubliee.localeCompare(b.datePubliee));
@@ -216,6 +229,21 @@ export function contradictions(sources) {
 export async function produire({ sources, grappes, outil, dossier, ts }) {
   const ids = sources.map((s) => s.id).sort();
   const silences = detecter({ sources, grappes });
+
+  // Silences par population, dès que les deux coexistent.
+  //
+  // Un terme présent dans la requête ne peut pas s'effondrer, puisqu'il
+  // conditionne l'appartenance au corpus ; et un trou temporel dans une
+  // population cherchée dit ce que le moteur n'a pas indexé, pas ce que la
+  // presse n'a pas publié. Fusionner les deux produirait le premier faux
+  // constat du projet.
+  const pop = populations(sources);
+  const mixte = pop.lecture.length > 0 && pop.recherche.length > 0;
+  const idsPar = (liste) => new Set(liste.map((s) => s.id));
+  const grappesDe = (liste) => {
+    const ids = idsPar(liste);
+    return grappes.filter((g) => g.membres.some((m) => ids.has(m.id)));
+  };
   const { acteurs, citationsTotal, citationsAttribuees } = compterActeurs(sources);
 
   return {
@@ -243,5 +271,19 @@ export async function produire({ sources, grappes, outil, dossier, ts }) {
       recouvrementMedian: g.recouvrementMedian, membres: g.membres.map((m) => m.id),
     })),
     silences,
+    populations: {
+      lecture: pop.lecture.length,
+      recherche: pop.recherche.length,
+      mixte,
+      // Un constat lu sur un corpus mixte est un constat sur deux objets.
+      avertissement: mixte
+        ? 'Corpus mixte : les absences ci-dessus portent sur les deux populations '
+          + 'confondues. Les colonnes par provenance disent laquelle parle.'
+        : null,
+    },
+    silencesParProvenance: mixte ? {
+      lecture: detecter({ sources: pop.lecture, grappes: grappesDe(pop.lecture) }),
+      recherche: detecter({ sources: pop.recherche, grappes: grappesDe(pop.recherche) }),
+    } : null,
   };
 }

@@ -102,6 +102,13 @@ export class Dossiers {
       datePubliee: page.datePubliee,
       dateModifiee: page.dateModifiee,
       datesIncoherentes: !!page.datesIncoherentes,
+      // Provenance : « lecture » par défaut. Un corpus assemblé par un moteur
+      // n'a pas le même biais de sélection qu'un corpus assemblé par lecture,
+      // et les mélanger sans le dire rend les comptages ininterprétables.
+      provenance: page.provenance || 'lecture',
+      rang: page.rang ?? null,
+      dateFournisseur: page.dateFournisseur ?? null,
+      scoreFournisseur: page.scoreFournisseur ?? null,
       consulteeLe: this.horloge(),
       texteHash: hash,
       liens: page.liens || [],

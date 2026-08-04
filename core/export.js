@@ -145,6 +145,26 @@ export function versMarkdown({ meta, releve, sources, lectures = [], etapes = []
     L.push('');
   }
 
+  if (releve.populations?.mixte) {
+    L.push('## Provenance du corpus', '');
+    L.push(`${releve.populations.lecture} article(s) versés par lecture · `
+      + `${releve.populations.recherche} par recherche.`, '');
+    L.push(`> ${releve.populations.avertissement}`, '');
+    L.push('| Absence | Lecture | Recherche |', '|---|---:|---:|');
+    const par = releve.silencesParProvenance;
+    const codes = new Set([...par.lecture.calcules, ...par.recherche.calcules].map((c) => c.code));
+    for (const code of codes) {
+      const l = par.lecture.calcules.find((c) => c.code === code);
+      const r = par.recherche.calcules.find((c) => c.code === code);
+      L.push(`| ${LIBELLES[code] || code} | ${l ? l.constat : '_non calculé_'} | `
+        + `${r ? r.constat : '_non calculé_'} |`);
+    }
+    L.push('');
+    L.push('_Un terme présent dans la requête ne peut pas s’effondrer, puisqu’il conditionne '
+      + 'l’appartenance au corpus. Un trou dans la colonne « recherche » dit ce que le moteur '
+      + 'n’a pas indexé, pas ce que la presse n’a pas publié._', '');
+  }
+
   L.push('## Absences constatées', '');
   for (const c of releve.silences.calcules) {
     L.push(`### ${LIBELLES[c.code] || c.code} — ${c.constat}`, '');
