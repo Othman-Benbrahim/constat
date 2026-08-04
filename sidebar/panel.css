@@ -345,3 +345,11 @@ ol.trace li.erreur { color: var(--ocre); }
   padding: 2px 4px; font-size: 10.5px;
   font-family: var(--chasse);
 }
+
+/* Verdict du versement par moteur. Même fond que le registre B : ce corpus
+ * n'a pas été assemblé par vous, et ça doit se voir. */
+.verdict ul.detecteurs { margin: 6px 0 10px; padding-left: 4px; list-style: none;
+  font-family: var(--chasse); font-size: 10.5px; }
+.verdict ul.detecteurs li.vivant { color: var(--constate); }
+.verdict ul.detecteurs li.mort { color: var(--ocre); }
+.sources li.trouvee { box-shadow: inset 2px 0 0 var(--mesure); padding-left: 8px; }

@@ -15,6 +15,8 @@
 
   <div class="actions">
     <button id="verser" class="principal">Verser cette page</button>
+    <button id="chercher">Chercher des articles</button>
+    <button id="relire">Relire les incomplètes</button>
     <button id="relever">Établir le relevé</button>
     <button id="lire">Lire (registre B)</button>
     <button id="etape-4">4 · Analyse triple</button>
@@ -79,9 +81,11 @@
     <input id="f-modele">
     <label for="f-url">URL de l’API (vide = valeur par défaut)</label>
     <input id="f-url" placeholder="https://…">
-    <label for="f-cle">Clé API</label>
+    <label for="f-cle">Clé API du modèle</label>
     <input id="f-cle" type="password" autocomplete="off">
-    <label><input type="checkbox" id="f-memoriser"> Mémoriser la clé sur cette machine</label>
+    <label for="f-cle-exa">Clé API Exa (recherche d’articles, facultatif)</label>
+    <input id="f-cle-exa" type="password" autocomplete="off" placeholder="dashboard.exa.ai → API Keys">
+    <label><input type="checkbox" id="f-memoriser"> Mémoriser les clés sur cette machine</label>
     <label><input type="checkbox" id="f-comparer" checked>
       Lancer aussi la lecture témoin depuis les articles bruts (double le coût)</label>
     <p class="note">La lecture témoin sert à répondre à une question et une seule :
@@ -112,6 +116,30 @@
     <div class="actions">
       <button type="submit" class="principal">Coter</button>
       <button type="button" id="annuler-motif">Annuler</button>
+    </div>
+  </form>
+
+  <!-- Versement par moteur de recherche — à l'essai. Le verdict s'affiche
+       après chaque recherche : la question n'est pas « obtient-on des
+       articles » mais « les cinq comptages disent-ils encore quelque chose ». -->
+  <form id="form-recherche" class="panneau" hidden>
+    <label for="f-query">Requête</label>
+    <input id="f-query" placeholder="contournement Nîmes-Ouest suspension chantier">
+    <label for="f-nombre">Nombre de résultats</label>
+    <input id="f-nombre" type="number" min="1" max="30" value="12">
+    <label for="f-depuis">Publiés depuis (facultatif)</label>
+    <input id="f-depuis" type="date">
+    <label for="f-jusqua">Publiés jusqu’au (facultatif)</label>
+    <input id="f-jusqua" type="date">
+    <p class="note">Le moteur découvre les URL ; <strong>Constat lit ensuite chaque page
+      à la source</strong>, sinon il n’y a ni date déclarée ni lien de corps. Firefox
+      demandera l’accès aux sites au premier lancement.<br><br>
+      Les articles sont versés avec la mention <strong>provenance : recherche</strong>.
+      Un terme présent dans votre requête ne pourra jamais s’effondrer — il conditionne
+      l’appartenance au corpus.</p>
+    <div class="actions">
+      <button type="submit" class="principal">Chercher et verser</button>
+      <button type="button" id="annuler-recherche">Annuler</button>
     </div>
   </form>
 

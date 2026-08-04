@@ -19,13 +19,19 @@ import { produire } from '../core/releve.js';
 import { versJSON, versMarkdown, chiffrer } from '../core/export.js';
 import { distribution, courantes, coter, FIABILITE, CREDIBILITE } from '../core/cotation.js';
 import { assembler } from '../core/rapport.js';
+import {
+  corpsRequete, enTetes, entreeRecherche, versPage, fusionner, verdict, requetePage,
+  FOURNISSEUR as MOTEUR,
+} from '../core/recherche.js';
 import { promptDepuisReleve, promptDepuisTextes, validerLecture, sourcesInventees, CONSIGNE } from '../core/prompt.js';
 import { FOURNISSEURS, appeler, estimerCout, extraireJson, originesFournisseur } from '../core/llm.js';
 import { ETAPES, construirePrompt, valider } from '../core/etapes.js';
 
 /** Les étapes branchées, dans l'ordre du pipeline. */
 const NUMEROS = Object.keys(ETAPES).map(Number).sort((a, b) => a - b);
-import { rendreReleve, rendreSources, rendreVide, rendreLectures, rendreEtapes } from './rendu.js';
+import {
+  rendreReleve, rendreSources, rendreVide, rendreLectures, rendreEtapes, rendreVerdict,
+} from './rendu.js';
 
 const api = globalThis.browser ?? globalThis.chrome;
 const D = new Dossiers(stockageNavigateur());
@@ -115,6 +121,7 @@ async function suivreOnglet() {
 async function rafraichirPermissions() {
   const p = await api.permissions.getAll();
   originesAccordees = new Set(p.origins || []);
+  accesPages = originesAccordees.has('*://*/*') || originesAccordees.has('<all_urls>');
 }
 
 /** Vrai si l'origine est couverte, y compris par une permission plus large. */
@@ -133,6 +140,8 @@ function origineCouverte(origine) {
 function majBoutons() {
   $('relever').disabled = !dossierCourant;
   $('lire').disabled = !dossierCourant;
+  $('chercher').disabled = !dossierCourant;
+  $('relire').disabled = !dossierCourant;
   for (const n of NUMEROS) $(`etape-${n}`).disabled = !dossierCourant;
   $('exporter').disabled = !dossierCourant;
   $('verser').disabled = !dossierCourant || !onglet;
@@ -389,10 +398,10 @@ async function fetchParArrierePlan(url, opts) {
 
 async function reglages() {
   const r = (await D.s.get(CLE_REGLAGES));
-  if (r) return { ...r, cle: r.cle || cleSession };
+  if (r) return { ...r, cle: r.cle || cleSession, cleRecherche: r.cleRecherche || cleRechercheSession };
   return {
     fournisseur: 'anthropic', modele: FOURNISSEURS.anthropic.modeleDefaut,
-    url: '', cle: '', memoriser: false, comparer: true,
+    url: '', cle: '', cleRecherche: '', memoriser: false, comparer: true,
   };
 }
 
@@ -467,6 +476,7 @@ function demanderAccesFournisseur(ev) {
   // Aucun await avant permissions.request() : Firefox exige que l'appel parte
   // pendant que le gestionnaire de soumission est encore sur la pile.
   const origines = originesFournisseur($('f-fournisseur').value, $('f-url').value.trim());
+  if ($('f-cle-exa').value.trim()) origines.push(MOTEUR.origine);
   const promesse = api.permissions.request({ origins: origines });
   garde(async () => enregistrerReglages(await promesse, origines));
 }
@@ -479,10 +489,11 @@ async function enregistrerReglages(accorde, origines) {
     url: $('f-url').value.trim(),
     // Mémorisation opt-in : sans elle la clé ne survit pas à la session.
     cle: memoriser ? $('f-cle').value : '',
+    cleRecherche: memoriser ? $('f-cle-exa').value : '',
     memoriser,
     comparer: $('f-comparer').checked,
   });
-  if (!memoriser) cleSession = $('f-cle').value;
+  if (!memoriser) { cleSession = $('f-cle').value; cleRechercheSession = $('f-cle-exa').value; }
   $('form-modele').hidden = true;
 
   if (!accorde) {
@@ -495,6 +506,7 @@ async function enregistrerReglages(accorde, origines) {
 }
 
 let cleSession = '';
+let cleRechercheSession = '';
 
 async function ouvrirReglages() {
   const r = await reglages();
@@ -509,6 +521,7 @@ async function ouvrirReglages() {
   $('f-modele').value = r.modele || FOURNISSEURS[r.fournisseur].modeleDefaut;
   $('f-url').value = r.url;
   $('f-cle').value = r.cle || cleSession;
+  $('f-cle-exa').value = r.cleRecherche || cleRechercheSession;
   $('f-memoriser').checked = r.memoriser;
   $('f-comparer').checked = r.comparer;
   $('form-modele').hidden = false;
@@ -643,6 +656,165 @@ function fermerMotif(valeur) {
   if (r) r(valeur);
 }
 
+/* ----------------------------------- versement par moteur de recherche */
+
+let accesPages = false;
+
+/**
+ * Relit à la source les articles versés par recherche dont l'extraction est
+ * incomplète — sans date déclarée, sans lien, ou sans corps.
+ *
+ * Le journal est append-only : une relecture est une NOUVELLE entrée, et la
+ * lecture du corpus retient la dernière. L'historique de ce qui avait été
+ * versé d'abord reste donc intact et vérifiable.
+ */
+async function relireIncompletes() {
+  const sources = await D.corpus(dossierCourant, { avecTexte: false });
+  const aRelire = sources.filter((s) => s.provenance === 'recherche'
+    && (!s.datePubliee || !(s.liens || []).length || s.diagnostic?.echec));
+
+  if (!aRelire.length) { etat('Aucune source incomplète à relire.'); return; }
+  if (!accesPages) { etat('Accès aux sites non accordé — lancez une recherche pour l’obtenir.', true); return; }
+
+  let reussies = 0;
+  for (const [i, s] of aRelire.entries()) {
+    etat(`Relecture ${i + 1} / ${aRelire.length} — ${s.editeur}…`);
+    try {
+      const rep = await envoyerAuFond(requetePage(s.canonical || s.url));
+      if (!rep?.ok || !rep.texte) continue;
+      const extraite = extraire(new DOMParser().parseFromString(rep.texte, 'text/html'),
+        s.canonical || s.url, { pret: 'fetch' });
+      await D.verser(dossierCourant, {
+        ...extraite,
+        provenance: 'recherche', rang: s.rang,
+        dateFournisseur: s.dateFournisseur, scoreFournisseur: s.scoreFournisseur,
+        diagnostic: { ...extraite.diagnostic, origineContenu: 'page', relecture: true },
+      });
+      if (extraite.datePubliee) reussies++;
+    } catch (e) {
+      console.warn('[Constat] relecture échouée', s.url, e.message);
+    }
+  }
+  etat(`${aRelire.length} source(s) relues, ${reussies} datée(s) par leur page.`);
+  await afficher();
+}
+
+/**
+ * La soumission du formulaire est le geste utilisateur : la demande d'accès aux
+ * sites doit partir ici, avant tout await, sinon Firefox la refuse.
+ */
+function lancerRecherche(ev) {
+  ev.preventDefault();
+  let promesse = Promise.resolve(accesPages);
+  if (!accesPages) {
+    try { promesse = api.permissions.request({ origins: ['*://*/*'] }); } catch (e) {
+      promesse = Promise.resolve(false);
+      console.warn('[Constat] accès aux sites refusé', e.message);
+    }
+  }
+  garde(async () => {
+    accesPages = await promesse;
+    await chercher();
+  });
+}
+
+async function chercher() {
+  const r = await reglages();
+  if (!r.cleRecherche) {
+    etat('Renseignez une clé Exa dans « Modèle… ».', true);
+    $('form-modele').hidden = false;
+    return;
+  }
+  if (!(await api.permissions.contains({ origins: [MOTEUR.origine] }))) {
+    etat(`Autorisation manquante pour ${MOTEUR.origine}. Ouvrez « Modèle… » et enregistrez.`, true);
+    $('form-modele').hidden = false;
+    return;
+  }
+
+  const query = $('f-query').value.trim();
+  if (!query) { etat('Requête vide.', true); return; }
+
+  const corps = corpsRequete({
+    query,
+    nombre: Math.min(30, Math.max(1, Number($('f-nombre').value) || 12)),
+    depuis: $('f-depuis').value || null,
+    jusqua: $('f-jusqua').value || null,
+  });
+
+  etat(`Recherche « ${query} »…`);
+  const res = await fetchParArrierePlan(MOTEUR.url, {
+    headers: enTetes(r.cleRecherche), body: JSON.stringify(corps),
+  });
+  if (!res.ok) throw new Error(`${MOTEUR.nom} — HTTP ${res.status} : ${(await res.text()).slice(0, 200)}`);
+  const reponse = await res.json();
+
+  // La requête est archivée avant tout versement : sans elle, le corpus n'est
+  // pas rejouable, puisqu'une même requête relancée demain donne autre chose.
+  const trace = entreeRecherche({ dossier: dossierCourant, query, corps, reponse });
+  await D.ajouter(dossierCourant, trace);
+
+  const versees = [];
+  const resultats = reponse.results || [];
+  for (const [i, brut] of resultats.entries()) {
+    const page = versPage(brut, { rang: i + 1 });
+    etat(`Lecture de la page ${i + 1} / ${resultats.length} — ${hoteDe(page.url)}…`);
+
+    // Le moteur a découvert l'URL ; c'est Constat qui lit la page. Sans ça,
+    // ni date déclarée, ni lien de corps : trois détecteurs sur cinq meurent.
+    let extraite = null;
+    if (accesPages) {
+      try {
+        const rep = await envoyerAuFond(requetePage(page.url));
+        if (rep?.ok && rep.texte) {
+          extraite = extraire(new DOMParser().parseFromString(rep.texte, 'text/html'), page.url,
+            { pret: 'fetch' });
+          page.origineContenu = 'page';
+        }
+      } catch (e) {
+        console.warn('[Constat] page non récupérée', page.url, e.message);
+      }
+    }
+
+    if (!extraite) {
+      // Repli sur le contenu du moteur. Déclaré, jamais présenté comme
+      // équivalent : il ne porte ni <head>, ni liens de corps.
+      page.origineContenu = 'moteur';
+      extraite = page.html
+        ? extraire(new DOMParser().parseFromString(page.html, 'text/html'), page.url, { pret: 'api' })
+        : {
+          url: page.url, canonical: page.url, editeur: hoteDe(page.url), titre: null, auteurs: [],
+          datePubliee: null, dateModifiee: null, datesIncoherentes: false,
+          texte: page.texteBrut || '', liens: [], citations: [],
+          diagnostic: { zone: null, paragraphes: 0, caracteres: (page.texteBrut || '').length,
+            liensCorps: 0, liensHorsCorps: 0, echec: 'aucun balisage renvoyé par le moteur' },
+        };
+    }
+
+    const fusionnee = fusionner(page, extraite);
+    await D.verser(dossierCourant, fusionnee);
+    versees.push(fusionnee);
+  }
+
+  dernierVerdict = {
+    query,
+    cout: trace.cout,
+    echecs: trace.echecs,
+    ...verdict(versees),
+  };
+
+  $('form-recherche').hidden = true;
+  const lues = versees.filter((v) => v.diagnostic.origineContenu === 'page').length;
+  etat(`${versees.length} article(s) versés — ${lues} page(s) lues à la source, `
+    + `${versees.length - lues} repli(s) sur le contenu du moteur`
+    + (trace.echecs.length ? ` · ${trace.echecs.length} échec(s) de crawl` : '')
+    + (trace.cout !== null ? ` · ${trace.cout} $` : ''));
+  await afficher();
+}
+
+function hoteDe(u) { try { return new URL(u).hostname.replace(/^www\./, ''); } catch { return 'inconnu'; } }
+
+let dernierVerdict = null;
+
 /* ------------------------------------------------------------------ export */
 
 async function exporter() {
@@ -740,6 +912,8 @@ async function afficher() {
       + `outil ${releve.outil.version} · ${sources.length} sources`
     : `${sources.length} sources versées · aucun relevé établi`;
 
+  if (dernierVerdict) corps.append(rendreVerdict(dernierVerdict));
+
   const lectures = (await D.journal(dossierCourant)).filter((e) => e.t === 'lecture');
 
   if (releve) corps.append(rendreReleve(releve));
@@ -818,6 +992,11 @@ $('verser').addEventListener('click', () => {
     console.error('[Constat] verser', e);
   }
 });
+
+$('chercher').addEventListener('click', () => { $('form-recherche').hidden = false; $('f-query').focus(); });
+$('relire').addEventListener('click', () => garde(relireIncompletes));
+$('annuler-recherche').addEventListener('click', () => { $('form-recherche').hidden = true; });
+$('form-recherche').addEventListener('submit', lancerRecherche);
 
 $('relever').addEventListener('click', () => garde(etablirReleve));
 $('lire').addEventListener('click', () => garde(lire));

@@ -229,6 +229,10 @@ export function rendreSources(sources, cotes = new Map(), echelles = null, surCo
     meta.append(document.createTextNode(
       ` · ${(s.citations || []).length} citations · ${(s.liens || []).length} liens`,
     ));
+    if (s.provenance === 'recherche') {
+      meta.append(el('span', { class: 'provenance', text: ` · recherche, rang ${s.rang ?? '?'}` }));
+      li.classList.add('trouvee');
+    }
     if (s.diagnostic?.echec) {
       meta.append(el('span', { class: 'sans-date', text: ` · SANS CORPS : ${s.diagnostic.echec}` }));
       li.classList.add('sans-corps');
@@ -491,5 +495,77 @@ export function rendreEtapes(etapes, surValider) {
     }
     sec.append(bloc);
   }
+  return sec;
+}
+
+/* ------------------------------------------- verdict du versement par moteur
+ *
+ * Affiché après chaque recherche, et volontairement au-dessus du relevé : la
+ * question n'est pas « a-t-on obtenu des articles » mais « les cinq comptages
+ * disent-ils encore quelque chose ». Un corpus complet dont les détecteurs
+ * sont morts est pire qu'un corpus vide : il a l'air d'un résultat.
+ */
+
+const SEUILS = {
+  'acteur-non-cite': 'la moitié des articles doivent porter des guillemets',
+  'article-sans-source': 'la moitié doivent porter au moins un lien de corps',
+  'trou-dossier': '70 % doivent être datés par leur propre balisage',
+  'terme-effondre': '70 % doivent être datés par leur propre balisage',
+  'grappe-origine-unique': 'la moitié doivent avoir un corps exploitable',
+};
+
+export function rendreVerdict(v) {
+  const sec = el('section', { class: 'lecture verdict' });
+  sec.append(el('h3', { text: `Versement par moteur — « ${v.query} »` }));
+  sec.append(el('p', {
+    class: 'provenance',
+    text: `${v.sources} article(s) versés`
+      + (v.cout !== null && v.cout !== undefined ? ` · ${v.cout} $` : '')
+      + (v.echecs?.length ? ` · ${v.echecs.length} échec(s) de crawl` : ''),
+  }));
+
+  const paire = (libelle, n) => ligne(libelle, `${n} / ${v.sources}`, null, { creuse: true });
+  sec.append(ligne('Pages lues à la source', `${v.pagesRecuperees ?? 0} / ${v.sources}`,
+    el('div', { text: 'Le moteur découvre les URL, Constat lit les pages. Ce que renvoie le '
+      + 'moteur est du contenu extrait : sans <head>, donc sans JSON-LD ni balise <time>, et '
+      + 'sans les liens de corps qu’il prend pour de la navigation. Un repli sur ce contenu '
+      + 'tue les détecteurs 2, 3 et 4 d’un coup.' })));
+  sec.append(ligne('  repli sur le contenu du moteur', `${v.contenuMoteur ?? 0} / ${v.sources}`,
+    null, { creuse: true }));
+  sec.append(ligne('Avec balisage HTML', `${v.balisageRecu} / ${v.sources}`,
+    el('div', { text: 'Sans balisage : ni JSON-LD, ni guillemets situables, ni liens de corps. '
+      + 'Les détecteurs 1 et 4 meurent, et le corpus paraît complet alors qu’il est amputé.' })));
+  sec.append(paire('Corps extrait', v.corpsExtrait));
+  sec.append(paire('Avec un lien de corps', v.avecLiens));
+  sec.append(paire('  dont un document source', v.avecLienSource));
+  sec.append(paire('Avec citations', v.avecCitations));
+  sec.append(ligne('Datés par la PAGE', `${v.datePage} / ${v.sources}`, null, { creuse: true }));
+  sec.append(ligne('Datés par le MOTEUR seulement', `${v.dateFournisseurSeule} / ${v.sources}`,
+    v.dateFournisseurSeule
+      ? el('div', { text: 'Pour ces articles la chronologie ne repose plus sur ce que la page '
+        + 'déclare mais sur ce qu’un tiers infère. Les détecteurs 2 et 3 mesurent alors le '
+        + 'moteur, pas la presse.' })
+      : null, { creuse: true }));
+
+  sec.append(el('div', { class: 'titre', text: 'Détecteurs exploitables sur ce corpus' }));
+  const ul = el('ul', { class: 'detecteurs' });
+  for (const [code, ok] of Object.entries(v.detecteurs)) {
+    ul.append(el('li', { class: ok ? 'vivant' : 'mort', text: `${ok ? '✓' : '✗'}  ${code} — ${SEUILS[code]}` }));
+  }
+  sec.append(ul);
+
+  if (v.echecs?.length) {
+    sec.append(el('div', { class: 'ecartees' }, [
+      el('div', { text: 'Pages que le moteur n’a pas pu lire :' }),
+      listeCourte(v.echecs.map((e) => `${e.url} — ${e.tag} (${e.code})`), 6),
+    ]));
+  }
+
+  sec.append(el('p', {
+    class: 'provenance',
+    text: 'Rappel : un terme présent dans votre requête ne peut pas s’effondrer, '
+      + 'puisqu’il conditionne l’appartenance au corpus. Les silences d’un corpus '
+      + 'cherché sont en partie des artefacts de la recherche.',
+  }));
   return sec;
 }
