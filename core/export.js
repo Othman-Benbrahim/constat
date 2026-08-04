@@ -239,9 +239,12 @@ export function versMarkdown({ meta, releve, sources, lectures = [], etapes = []
 
   L.push('## Sources', '');
   for (const s of sources) {
-    L.push(`- **${s.titre || '(sans titre)'}** — ${s.editeur}, `
+    // Lien Markdown et non URL nue : le titre reste lisible et la pièce reste
+    // atteignable depuis l'export, y compris hors de l'extension.
+    const url = s.canonical || s.url;
+    L.push(`- **[${(s.titre || '(sans titre)').replace(/([\[\]])/g, '\\$1')}](${url})** — ${s.editeur}, `
       + `${s.datePubliee ? s.datePubliee.slice(0, 10) : '_date absente_'}  `);
-    L.push(`  ${s.canonical || s.url}  `);
+    L.push(`  <${url}>  `);
     const cote = cotation && cotation.cotes ? cotation.cotes.get(s.id) : null;
     L.push(`  consultée le ${(s.consulteeLe || '').slice(0, 10)} · `
       + `${(s.citations || []).length} citations · ${(s.liens || []).length} liens`
