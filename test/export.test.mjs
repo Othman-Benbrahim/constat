@@ -154,3 +154,13 @@ test('Markdown : sans registre B, aucune section vide n’apparaît', async () =
   const md = versMarkdown({ meta: META, releve, sources });
   assert.ok(!md.includes('Registre B'));
 });
+
+test('Markdown : chaque source est un lien cliquable', async () => {
+  const { releve } = await jeu();
+  const sources = [{ ...src(1), titre: 'Un titre avec [crochets]' }];
+  const md = versMarkdown({ meta: META, releve, sources });
+
+  assert.ok(md.includes('[Un titre avec \\[crochets\\]](https://ed1.fr/a)'),
+    'titre échappé, URL en cible');
+  assert.ok(md.includes('<https://ed1.fr/a>'), 'l’URL brute reste visible et cliquable');
+});
