@@ -353,3 +353,12 @@ ol.trace li.erreur { color: var(--ocre); }
 .verdict ul.detecteurs li.vivant { color: var(--constate); }
 .verdict ul.detecteurs li.mort { color: var(--ocre); }
 .sources li.trouvee { box-shadow: inset 2px 0 0 var(--mesure); padding-left: 8px; }
+
+/* Titre de source : lien vers l'article. Un dossier dont on ne peut pas rouvrir
+ * les pièces n'est pas un dossier. */
+a.titre-source {
+  color: inherit; text-decoration: none;
+  border-bottom: 1px solid var(--filet);
+}
+a.titre-source:hover { border-bottom-color: var(--encre); }
+a.titre-source:focus-visible { outline: 2px solid var(--encre); outline-offset: 2px; }

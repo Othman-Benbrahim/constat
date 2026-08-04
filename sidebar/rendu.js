@@ -221,7 +221,20 @@ export function rendreSources(sources, cotes = new Map(), echelles = null, surCo
   const ul = el('ul', { class: 'sources' });
 
   for (const s of sources) {
-    const li = el('li', {}, [el('span', { text: s.titre || '(sans titre)' })]);
+    // Le titre est un lien vers l'article. Sans ça, une source versée n'est
+    // consultable que depuis le journal interne : le dossier devient un objet
+    // fermé, alors que tout son intérêt est qu'on puisse retourner à la pièce.
+    // target="_blank" plutôt qu'un appel à tabs.create : ce module ne connaît
+    // pas le navigateur, et il ne doit pas commencer ici.
+    const lien = el('a', {
+      class: 'titre-source',
+      href: s.canonical || s.url,
+      target: '_blank',
+      rel: 'noopener noreferrer',
+      title: s.canonical || s.url,
+      text: s.titre || '(sans titre)',
+    });
+    const li = el('li', {}, [lien]);
     const meta = el('span', { class: 'meta' });
     meta.append(document.createTextNode(`${s.editeur} · `));
     if (s.datePubliee) meta.append(document.createTextNode(s.datePubliee.slice(0, 10)));
