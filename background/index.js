@@ -58,11 +58,18 @@ api.menus.onClicked.addListener(async (info, tab) => {
  */
 async function relayer(msg) {
   try {
-    const res = await fetch(msg.url, { method: 'POST', headers: msg.headers, body: msg.body });
+    const init = msg.methode === 'GET'
+      ? { method: 'GET', headers: msg.headers || {}, redirect: 'follow' }
+      : { method: 'POST', headers: msg.headers, body: msg.body };
+    const res = await fetch(msg.url, init);
     const texte = await res.text();
     let data = null;
     try { data = JSON.parse(texte); } catch { /* réponse non JSON : on rend le texte */ }
-    return { ok: res.ok, status: res.status, data, texte: texte.slice(0, 4000) };
+    // Une page HTML n'est pas tronquée : c'est le document à extraire.
+    return {
+      ok: res.ok, status: res.status, data,
+      texte: msg.methode === 'GET' ? texte : texte.slice(0, 4000),
+    };
   } catch (e) {
     // Cause quasi certaine ici : permission d'hôte non accordée pour ce
     // fournisseur. Le message le dit, plutôt que de laisser « NetworkError »
