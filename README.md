@@ -7,9 +7,9 @@ que vous lisez.
 > navigation, obtenez un relevé de ce que le corpus contient — et de ce qu'il
 > tait — puis une lecture analytique que vous pouvez contester étape par étape.
 
-Aucun compte, aucun serveur, aucune collecte automatique. Le seul appel réseau
-sortant est celui que vous déclenchez vers le fournisseur de modèle de votre
-choix, avec votre propre clé.
+Aucun compte, aucun serveur, aucune collecte automatique. Les seuls appels
+réseau sortants sont ceux que vous déclenchez, vers le fournisseur de modèle et
+le moteur de recherche de votre choix, avec vos propres clés.
 
 ---
 
@@ -84,11 +84,52 @@ indistinguable d'un détecteur de citations en panne.
 
 ---
 
+## Deux façons de remplir un dossier
+
+### Par lecture
+
+Un bouton, ou le menu contextuel, sur la page que vous consultez. Rien n'est
+re-téléchargé : ce qui est versé est ce que vous avez lu, DOM rendu compris. La
+permission d'hôte est demandée à ce moment, pour la seule origine concernée.
+
+### Par recherche
+
+Une requête envoyée à [Exa](https://exa.ai) avec votre clé. **Le moteur découvre
+les URL, Constat lit les pages.** Cette séparation n'est pas un détail
+d'implémentation : le contenu renvoyé par un moteur est du texte extrait, sans
+`<head>` — donc sans JSON-LD, sans balise `<time>`, et sans les liens de corps
+qu'il prend pour de la navigation. Constaté sur un dossier réel de douze
+articles : zéro date déclarée, zéro lien, trois détecteurs morts d'un coup.
+Constat récupère donc chaque page à son URL et lui applique la même extraction
+qu'à une page lue.
+
+Cela demande la permission d'accès aux sites, annoncée dans le formulaire et
+demandée au premier lancement. Si vous la refusez, la recherche fonctionne en
+repli sur le contenu du moteur — et le verdict affiche combien de sources sont
+dans ce cas.
+
+### Les deux populations ne se mélangent pas
+
+`provenance` est un champ du modèle de données. Dès que les deux coexistent, les
+cinq comptages sont calculés **trois fois** : sur le total, sur la lecture
+seule, sur la recherche seule. L'export sort un tableau à deux colonnes.
+
+Ce n'est pas de la présentation. Un terme présent dans votre requête ne peut pas
+s'effondrer, puisqu'il conditionne l'appartenance au corpus ; et un trou dans la
+colonne « recherche » dit ce que le moteur n'a pas indexé, pas ce que la presse
+n'a pas publié. Les fusionner produirait un chiffre juste sur un objet qui
+n'existe pas.
+
+La date renvoyée par le moteur n'est **jamais** promue en date de publication.
+Elle reste dans `dateFournisseur`, et le repli est tracé dans le diagnostic.
+
+---
+
 ## Le pipeline OSINT
 
 Transposition du skill `osint-intel`. Une étape = un bouton = un appel, recevant
 la sortie **validée par vous** de l'étape précédente. Jamais les onze étapes en
-un seul appel : le skill fonctionne en conversation parce qu'on peut contester
+un seul appel : la méthode fonctionne en conversation parce qu'on peut contester
 une étape et reprendre.
 
 | | Étape | Registre |
@@ -133,17 +174,17 @@ Les sources citées par le modèle qui n'existent pas dans le corpus sont listé
 
 Firefox **140** ou plus récent (bureau).
 
-La contrainte vient de `data_collection_permissions` : la déclaration intégrée
-des données transmises n'est reconnue qu'à partir de Firefox 140. Sur une
-version antérieure, Firefox ignore la clé et affiche un avertissement au
-chargement — la déclaration serait alors invisible pour l'utilisateur, ce qui
-revient à ne pas la faire.
-
 ```
 about:debugging → Ce Firefox → Charger un module temporaire → manifest.json
 ```
 
-Ou chargez `constat-x.y.z.zip`. L'extension n'est pas encore sur AMO.
+La contrainte de version vient de `data_collection_permissions` : la déclaration
+intégrée des données transmises n'est reconnue qu'à partir de Firefox 140. Sur
+une version antérieure, Firefox ignore la clé et affiche un avertissement au
+chargement — la déclaration serait alors invisible pour l'utilisateur, ce qui
+revient à ne pas la faire.
+
+L'extension n'est pas encore sur addons.mozilla.org.
 
 ### Permissions et données
 
@@ -153,11 +194,10 @@ Ou chargez `constat-x.y.z.zip`. L'extension n'est pas encore sur AMO.
 | `tabs` | connaître la page à verser |
 | `scripting` | lire la page **au moment où vous cliquez** |
 | `menus`, `downloads` | menu contextuel, export |
-| hôtes | demandés **au versement**, pour la seule origine concernée |
+| hôte de la page | demandé **au versement**, pour la seule origine concernée |
+| `*://*/*` | facultatif, demandé **au premier usage de la recherche**, pour lire les pages trouvées |
 
-Jamais `<all_urls>` à l'installation. Aucune collecte en arrière-plan. Rien
-n'est re-téléchargé : ce qui est versé est ce que vous avez lu, DOM rendu
-compris.
+Jamais `<all_urls>` à l'installation. Aucune collecte en arrière-plan.
 
 **`storage.local` n'est pas chiffré.** Les dossiers sont enregistrés en clair
 dans votre profil Firefox ; toute personne y ayant accès peut les lire. Le
@@ -171,23 +211,21 @@ Deux types de données sont déclarés dans
 
 - **`websiteContent`** — le contenu des pages versées, transmis au fournisseur
   de modèle lors d'une lecture ou d'une étape ;
-- **`authenticationInfo`** — votre clé d'API, transmise au fournisseur que vous
-  avez choisi.
+- **`authenticationInfo`** — vos clés d'API, transmises aux services que vous
+  avez choisis.
 
-Les deux sont déclarés comme **requis** plutôt qu'optionnels. La couche
-déterministe fonctionne sans transmettre quoi que ce soit, et on aurait pu
-n'annoncer ces données qu'au moment de configurer un modèle. Mais annoncer une
-capacité au moment où on s'en sert, c'est l'annoncer trop tard pour qu'elle
-pèse dans la décision d'installer. C'est le canal de sortie réel — pas le
-disque.
+Les deux sont déclarés **requis** plutôt qu'optionnels. La couche déterministe
+fonctionne sans rien transmettre, et on aurait pu n'annoncer ces données qu'au
+moment de configurer un modèle. Mais annoncer une capacité au moment où on s'en
+sert, c'est l'annoncer trop tard pour qu'elle pèse dans la décision d'installer.
 
 ### BYOK
 
-Anthropic, OpenAI, Google, Mistral, ou toute API compatible OpenAI, y compris
-locale (Ollama, LM Studio). Clé stockée localement, mémorisation facultative,
-jamais transmise ailleurs qu'au fournisseur choisi. **Le coût maximal estimé
-s'affiche avant chaque appel**, avec la date d'établissement des tarifs et la
-mention de l'approximation employée.
+Modèle : Anthropic, OpenAI, Google, Mistral, ou toute API compatible OpenAI, y
+compris locale (Ollama, LM Studio). Recherche : Exa. Clés stockées localement,
+mémorisation facultative, jamais transmises ailleurs qu'au service choisi.
+**Le coût maximal estimé s'affiche avant chaque appel**, avec la date
+d'établissement des tarifs et la mention de l'approximation employée.
 
 ---
 
@@ -195,13 +233,13 @@ mention de l'approximation employée.
 
 ```bash
 npm install     # linkedom, dépendance de test uniquement
-npm test        # 142 tests, node --test, sans réseau ni navigateur
+npm test        # 156 tests, node --test, sans réseau ni navigateur
 ```
 
 L'extension elle-même n'a **aucune dépendance**.
 
 ```
-core/           15 modules, aucun ne connaît le navigateur ni le réseau
+core/           16 modules, aucun ne connaît le navigateur ni le réseau
   extraction.js   corps, liens, citations, métadonnées, diagnostic
   entites.js      entités nommées, désélision, fusion des variantes
   empreinte.js    SHA-256 · recouvrement de shingles · SimHash
@@ -213,8 +251,11 @@ core/           15 modules, aucun ne connaît le navigateur ni le réseau
   etapes.js       pipeline, prompts, validation stricte
   prompt.js       les deux prompts concurrents
   llm.js          fournisseurs BYOK, estimation de coût
+  recherche.js    versement par moteur, verdict de viabilité
   dossier.js      journal append-only
   export.js       JSON · Markdown · chiffrement
+  stockage.js     adaptateur browser.storage.local
+  normalize.js    repris verbatim de Sentinelle
 sidebar/        panneau, rendu, style
 background/     menu contextuel, relais réseau
 content/        capture de la page
@@ -222,17 +263,26 @@ references/     les 11 fichiers du skill osint-intel
 outils/
   calibrer.mjs    mesure du seuil de recouvrement sur un corpus réel
   demo.mjs        la chaîne complète sur un corpus fabriqué
+  essai-exa.mjs   banc d'essai du versement par moteur, hors extension
 ```
 
-`core/normalize.js` est repris verbatim de Sentinelle.
+### Réseau
+
+Tous les appels sortants passent par l'arrière-plan, jamais par le panneau : une
+page d'extension subit le CORS comme n'importe quelle page, et c'est
+l'arrière-plan qui détient les permissions d'hôte. Le canal est un **port** et
+non un message, pour deux raisons distinctes — l'ouverture réveille l'event page
+non persistante, et la garder ouverte l'empêche d'être terminée pendant un appel
+d'une minute.
 
 ### Rejouabilité
 
 Le journal est **append-only** : une révision est une nouvelle entrée, jamais
 une réécriture. Chaque relevé enregistre les identifiants des sources qu'il a
 consommées, l'empreinte du corpus, la version d'outil et les seuils effectifs.
-Un relevé ancien est donc rejouable à l'identique, même après ajout de nouvelles
-sources.
+Chaque recherche enregistre sa requête, ses paramètres, son `requestId`, le rang
+de chaque résultat et les échecs de crawl. Un relevé ancien est donc rejouable à
+l'identique, même après ajout de nouvelles sources.
 
 Si la version d'outil a changé, le rejeu donne un résultat **différent**, et
 c'est correct : l'écart s'affiche au lieu d'être masqué.
@@ -243,24 +293,28 @@ c'est correct : l'écart s'affiche au lieu d'être masqué.
 
 Elles sont dans le README parce qu'elles sont dans le code, pas l'inverse.
 
+- **Tout est calibré pour le français.** Lexique d'institutions, marqueurs
+  d'abandon, verbes d'attribution, règles de désélision. Sur un corpus
+  anglophone, la reconnaissance d'entités dérive — les noms de mois et de jours
+  remontent comme acteurs.
 - **Le seuil de recouvrement (0,60) n'est pas établi.** Il vient de textes
-  synthétiques. Sur de la vraie presse, les formules de métier créent du
-  recouvrement résiduel. `node outils/calibrer.mjs corpus/` sort la
-  distribution des paires et les dix plus fortes à juger à la main. Si les deux
-  populations ne se séparent pas, c'est que le seuil n'existe pas — et il faut
-  le dire dans le relevé plutôt que d'en choisir un.
+  synthétiques. `node outils/calibrer.mjs corpus/` sort la distribution des
+  paires et les dix plus fortes à juger à la main. Si les deux populations ne se
+  séparent pas, c'est que le seuil n'existe pas — et il faut le dire dans le
+  relevé plutôt que d'en choisir un.
 - **La reconnaissance d'entités est un lexique et des règles de
   capitalisation**, sans modèle. Le seuil de trois articles écarte le bruit
   isolé, pas le bruit récurrent.
 - **Les entités d'un seul mot sont exclues du détecteur « jamais cité ».** Gaza,
   Brent, Khasab sont des entités nommées légitimes mais pas des acteurs, et
-  rien ici ne permet de les distinguer sans modèle. Deviner reviendrait à
-  présenter une inférence comme une observation. Le comptage des exclusions est
-  affiché.
+  rien ici ne permet de les distinguer sans modèle. Le comptage des exclusions
+  est affiché.
 - **L'appariement des contradictions** prend le nom signifiant le plus proche à
-  gauche du nombre. C'est grossier, d'où l'affichage des extraits : on ne
-  demande pas de croire l'appariement sur parole.
+  gauche du nombre. C'est grossier, d'où l'affichage des extraits.
 - **Un live blog est traité comme un article unique**, avec une date unique.
+- **Les pages rendues côté client** ou derrière un mur de consentement
+  échouent à la relecture par recherche. La source est enregistrée avec son
+  échec plutôt que d'être écartée.
 - **La couche modèle n'est pas testable** ; seule la couche déterministe l'est.
 
 ---
@@ -277,4 +331,4 @@ Elles sont dans le README parce qu'elles sont dans le code, pas l'inverse.
 
 ## Licence
 
-GPL-3.0-only.
+AGPL-3.0-only.

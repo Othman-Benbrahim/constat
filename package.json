@@ -1,0 +1,14 @@
+{
+  "name": "constat",
+  "version": "0.1.0",
+  "description": "Extension Firefox : instruit une question d'intelligence à partir des pages que vous versez, produit un relevé déterministe de ce que le corpus contient et de ce qu'il tait.",
+  "type": "module",
+  "private": true,
+  "license": "AGPL-3.0-only",
+  "scripts": {
+    "test": "node --test test/*.test.mjs"
+  },
+  "devDependencies": {
+    "linkedom": "^0.18.13"
+  }
+}
