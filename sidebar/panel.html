@@ -29,6 +29,8 @@
     <button id="exporter">Exporter</button>
     <button id="reglages">Modèle…</button>
     <button id="nouveau">Nouveau dossier</button>
+    <button id="clore">Clore le dossier</button>
+    <button id="corbeille">Corbeille</button>
   </div>
   <select id="choix-dossier" aria-label="Dossier ouvert" hidden></select>
   <p class="etat" id="etat"></p>
@@ -69,6 +71,18 @@
     <div class="actions">
       <button type="submit" class="principal">Exporter</button>
       <button type="button" id="annuler-export">Annuler</button>
+    </div>
+  </form>
+
+  <!-- Corbeille. Un dossier clos n'accepte plus aucune écriture : il ne peut
+       plus recevoir de page par mégarde ni entrer dans un relevé. Il reste
+       lisible et exportable tant qu'il n'a pas été supprimé. -->
+  <form id="form-corbeille" class="panneau" hidden>
+    <p class="note" id="f-corbeille-note"></p>
+    <ul class="corbeille" id="f-corbeille-liste"></ul>
+    <div class="actions">
+      <button type="button" id="vider-corbeille">Supprimer définitivement tout</button>
+      <button type="button" id="annuler-corbeille">Fermer</button>
     </div>
   </form>
 

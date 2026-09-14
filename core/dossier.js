@@ -15,6 +15,12 @@
 //
 // Le corps n'est pas dans le journal : celui-ci reste léger à parcourir, et
 // deux URL au même texteHash sont une reprise littérale constatée sans calcul.
+//
+// L'état d'un dossier (actif / corbeille) est lui aussi une entrée de journal,
+// jamais un champ réécrit : clore puis restaurer laisse deux entrées et une
+// trace datée des deux gestes. L'index `dossiers` reste complet quel que soit
+// l'état — un dossier en corbeille possède encore ses textes, et les retirer
+// de l'index ferait purger à tort des corps qu'il référence encore.
 
 import { empreinteExacte } from './empreinte.js';
 
@@ -34,6 +40,18 @@ const CLE_INDEX = 'dossiers';
 const cleJournal = (id) => `j:${id}`;
 const cleTexte = (hash) => `txt:${hash}`;
 
+export const ETATS = ['actif', 'corbeille'];
+
+/** L'état est la dernière entrée `etat` du journal. Un dossier qui n'en porte
+ *  aucune est actif : les dossiers antérieurs à cette fonctionnalité le restent
+ *  sans migration. */
+function etatDuJournal(journal) {
+  for (let i = journal.length - 1; i >= 0; i -= 1) {
+    if (journal[i].t === 'etat') return journal[i].etat;
+  }
+  return 'actif';
+}
+
 export class Dossiers {
   constructor(stockage, { horloge = () => new Date().toISOString() } = {}) {
     this.s = stockage;
@@ -48,9 +66,19 @@ export class Dossiers {
     return (await this.s.get(cleJournal(id))) || [];
   }
 
-  /** Ajoute une entrée. Ne réécrit jamais. */
+  /**
+   * Ajoute une entrée. Ne réécrit jamais.
+   *
+   * Un dossier en corbeille n'accepte plus que des entrées `etat` — c'est-à-dire
+   * sa restauration. Le verrou est ici et non dans l'interface : un versement
+   * égaré dans un dossier clos contaminerait un corpus déjà exporté, et aucun
+   * comptage ultérieur ne le signalerait.
+   */
   async ajouter(id, entree) {
     const j = await this.journal(id);
+    if (entree.t !== 'etat' && etatDuJournal(j) === 'corbeille') {
+      throw new Error(`dossier en corbeille : ${id} — restaurez-le avant d’y écrire`);
+    }
     const complete = { ...entree, ts: entree.ts || this.horloge() };
     j.push(complete);
     await this.s.set(cleJournal(id), j);
@@ -157,6 +185,100 @@ export class Dossiers {
   async meta(id) {
     const j = await this.journal(id);
     return [...j].reverse().find((e) => e.t === 'dossier') || null;
+  }
+
+  /* ------------------------------------------------------------ corbeille */
+
+  async etat(id) {
+    return etatDuJournal(await this.journal(id));
+  }
+
+  /**
+   * Identifiants filtrés par état. `index()` reste la liste brute et complète :
+   * c'est elle que `supprimer()` parcourt pour savoir quels corps sont encore
+   * référencés. L'interface, elle, appelle `lister()`.
+   */
+  async lister({ etat = 'actif' } = {}) {
+    const idx = await this.index();
+    if (etat === 'tous') return idx;
+    const gardes = [];
+    for (const id of idx) if ((await this.etat(id)) === etat) gardes.push(id);
+    return gardes;
+  }
+
+  /**
+   * Ce qu'on sait d'un dossier au moment d'envisager sa clôture. Que des faits
+   * comptés : l'interface les affiche, elle ne les résume pas en verdict. `ok`
+   * ne dit pas « clôturable », il dit « un relevé a été établi et un export a
+   * été produit depuis ».
+   */
+  async cloture(id) {
+    const j = await this.journal(id);
+    const dernier = (t) => [...j].reverse().find((e) => e.t === t) || null;
+
+    const releve = dernier('releve');
+    const exports = j.filter((e) => e.t === 'export');
+    const dernierExport = exports.at(-1) || null;
+    const etapesValidees = new Set(
+      j.filter((e) => e.t === 'etape' && e.validee).map((e) => e.numero),
+    );
+
+    // Un export antérieur au dernier relevé ne clôt rien : le corpus a bougé
+    // depuis le fichier produit.
+    const exportAJour = !!(releve && dernierExport && dernierExport.ts >= releve.ts);
+
+    const manque = [];
+    if (!releve) manque.push('aucun relevé établi');
+    if (!dernierExport) manque.push('aucun export produit');
+    else if (!exportAJour) manque.push('le dernier export est antérieur au dernier relevé');
+
+    return {
+      id,
+      etat: etatDuJournal(j),
+      sources: new Set(j.filter((e) => e.t === 'source').map((e) => e.canonical || e.url)).size,
+      releve: releve ? { ts: releve.ts, empreinteCorpus: releve.empreinteCorpus } : null,
+      exports: exports.length,
+      dernierExport: dernierExport
+        ? { ts: dernierExport.ts, format: dernierExport.format, chiffre: !!dernierExport.chiffre }
+        : null,
+      etapesValidees: [...etapesValidees].sort((a, b) => a - b),
+      ok: exportAJour,
+      manque,
+    };
+  }
+
+  /**
+   * Met le dossier en corbeille. N'exige pas que `cloture().ok` soit vrai : un
+   * dossier abandonné se range aussi. C'est l'interface qui montre ce qui
+   * manque avant de demander confirmation — refuser ici transformerait un
+   * constat en règle.
+   */
+  async clore(id, { motif = '' } = {}) {
+    if ((await this.etat(id)) === 'corbeille') throw new Error(`déjà en corbeille : ${id}`);
+    const c = await this.cloture(id);
+    return this.ajouter(id, {
+      t: 'etat',
+      dossier: id,
+      etat: 'corbeille',
+      motif,
+      // Ce qu'on savait au moment du geste, pour que la corbeille se lise sans
+      // recalculer et qu'une clôture prématurée reste visible.
+      constat: { sources: c.sources, releve: c.releve, dernierExport: c.dernierExport, manque: c.manque },
+    });
+  }
+
+  async restaurer(id) {
+    if ((await this.etat(id)) !== 'corbeille') throw new Error(`pas en corbeille : ${id}`);
+    return this.ajouter(id, { t: 'etat', dossier: id, etat: 'actif' });
+  }
+
+  /** Suppression définitive de tout ce qui est en corbeille. Jamais automatique,
+   *  jamais différée : la corbeille ne se vide que sur un geste. */
+  async viderCorbeille() {
+    const ids = await this.lister({ etat: 'corbeille' });
+    let textesSupprimes = 0;
+    for (const id of ids) textesSupprimes += (await this.supprimer(id)).textesSupprimes;
+    return { dossiers: ids.length, ids, textesSupprimes };
   }
 
   /**

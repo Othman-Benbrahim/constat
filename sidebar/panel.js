@@ -144,6 +144,7 @@ function majBoutons() {
   $('relire').disabled = !dossierCourant;
   for (const n of NUMEROS) $(`etape-${n}`).disabled = !dossierCourant;
   $('exporter').disabled = !dossierCourant;
+  $('clore').disabled = !dossierCourant;
   $('verser').disabled = !dossierCourant || !onglet;
   $('verser').title = !dossierCourant ? 'Ouvrez d’abord un dossier'
     : !onglet ? 'Ouvrez un article dans l’onglet actif' : '';
@@ -848,9 +849,141 @@ async function exporter() {
   await api.downloads.download({ url, filename: `${dossierCourant}.${extension}`, saveAs: true });
   setTimeout(() => URL.revokeObjectURL(url), 30000);
 
+  // L'export laisse une trace dans le journal. Sans elle, « ce dossier a déjà
+  // été exporté » resterait un souvenir de l'utilisateur : la corbeille ne
+  // pourrait afficher qu'une supposition là où elle doit afficher une date.
+  await D.ajouter(dossierCourant, {
+    t: 'export',
+    dossier: dossierCourant,
+    format: json ? 'json' : 'md',
+    chiffre: !!phrase,
+    releveRef: releve.empreinteCorpus,
+  });
+
   $('f-passphrase').value = '';
   $('form-export').hidden = true;
-  etat(phrase ? 'Exporté et chiffré.' : 'Exporté en clair.');
+  etat(`${phrase ? 'Exporté et chiffré' : 'Exporté en clair'}. `
+    + '« Clore le dossier » le range en corbeille : il n’acceptera plus de versement.');
+  await afficher();
+}
+
+/* --------------------------------------------------------------- corbeille */
+
+const jour = (ts) => (ts ? ts.slice(0, 16).replace('T', ' ') : '—');
+
+/**
+ * Clôture. Ce qui manque est montré, la décision reste à l'utilisateur : un
+ * dossier abandonné se range aussi, et refuser ici transformerait un constat
+ * en règle.
+ */
+async function clore() {
+  const c = await D.cloture(dossierCourant);
+  const meta = await D.meta(dossierCourant);
+
+  const etatDossier = c.manque.length
+    ? `Incomplet : ${c.manque.join(', ')}.`
+    : `Relevé du ${jour(c.releve.ts)}, exporté le ${jour(c.dernierExport.ts)}`
+      + `${c.etapesValidees.length ? `, étapes validées ${c.etapesValidees.join(', ')}` : ''}.`;
+
+  const ok = await confirmer(
+    `Clore « ${(meta?.question || dossierCourant).slice(0, 80)} » ?\n`
+    + `${c.sources} sources. ${etatDossier}\n`
+    + 'Le dossier passe en corbeille : plus aucun versement, aucun relevé, aucune étape. '
+    + 'Il reste lisible et restaurable jusqu’à suppression définitive.',
+  );
+  if (!ok) { etat('Clôture annulée.'); return; }
+
+  await D.clore(dossierCourant, { motif: c.manque.length ? 'clos incomplet' : 'validé et exporté' });
+  const actifs = await D.lister();
+  dossierCourant = actifs.at(-1) || null;
+  etat(actifs.length
+    ? 'Dossier mis en corbeille. Il ne peut plus se mêler au dossier courant.'
+    : 'Dossier mis en corbeille. Aucun dossier actif : ouvrez-en un nouveau.');
+  await afficher();
+}
+
+/** Liste ce qui est en corbeille, avec les faits datés de chaque clôture. */
+async function ouvrirCorbeille() {
+  const ids = await D.lister({ etat: 'corbeille' });
+  const liste = $('f-corbeille-liste');
+  liste.textContent = '';
+
+  $('f-corbeille-note').textContent = ids.length
+    ? 'Dossiers clos. Ils n’acceptent plus d’écriture et n’apparaissent plus dans le '
+      + 'sélecteur. Restaurer rouvre l’écriture ; supprimer est définitif et efface '
+      + 'aussi les textes qu’aucun autre dossier ne référence.'
+    : 'La corbeille est vide.';
+  $('vider-corbeille').disabled = !ids.length;
+
+  for (const id of ids) {
+    const meta = await D.meta(id);
+    const c = await D.cloture(id);
+
+    const li = document.createElement('li');
+    const titre = document.createElement('p');
+    titre.className = 'titre';
+    titre.textContent = meta?.question || id;
+
+    const faits = document.createElement('p');
+    faits.className = 'meta';
+    faits.textContent = [
+      `${c.sources} sources`,
+      c.releve ? `relevé ${c.releve.empreinteCorpus}` : 'aucun relevé',
+      c.dernierExport ? `exporté le ${jour(c.dernierExport.ts)}` : 'jamais exporté',
+      c.etapesValidees.length ? `étapes ${c.etapesValidees.join(', ')}` : null,
+    ].filter(Boolean).join(' · ');
+
+    const actions = document.createElement('div');
+    actions.className = 'actions';
+
+    const restaurer = document.createElement('button');
+    restaurer.type = 'button';
+    restaurer.textContent = 'Restaurer';
+    restaurer.addEventListener('click', () => garde(async () => {
+      await D.restaurer(id);
+      dossierCourant = id;
+      $('form-corbeille').hidden = true;
+      etat('Dossier restauré. Il redevient inscriptible.');
+      await afficher();
+    }));
+
+    const supprimer = document.createElement('button');
+    supprimer.type = 'button';
+    supprimer.textContent = 'Supprimer définitivement';
+    supprimer.addEventListener('click', () => garde(async () => {
+      const oui = await confirmer(
+        `Supprimer « ${(meta?.question || id).slice(0, 80)} » ? `
+        + `${c.sources} sources, ${c.exports} export(s) produit(s). `
+        + 'Irréversible : le journal et les textes non partagés disparaissent. '
+        + 'Les fichiers déjà exportés, eux, restent sur le disque.',
+      );
+      if (!oui) { etat('Suppression annulée.'); return; }
+      const r = await D.supprimer(id);
+      etat(`Dossier supprimé · ${r.textesSupprimes} textes effacés.`);
+      await ouvrirCorbeille();
+      await afficher();
+    }));
+
+    actions.append(restaurer, supprimer);
+    li.append(titre, faits, actions);
+    liste.append(li);
+  }
+
+  $('form-corbeille').hidden = false;
+}
+
+async function viderCorbeille() {
+  const ids = await D.lister({ etat: 'corbeille' });
+  if (!ids.length) return;
+  const oui = await confirmer(
+    `Supprimer définitivement ${ids.length} dossier(s) clos ? `
+    + 'Irréversible. Les fichiers déjà exportés restent sur le disque.',
+  );
+  if (!oui) { etat('Suppression annulée.'); return; }
+  const r = await D.viderCorbeille();
+  etat(`${r.dossiers} dossiers supprimés · ${r.textesSupprimes} textes effacés.`);
+  await ouvrirCorbeille();
+  await afficher();
 }
 
 /* ---------------------------------------------------------------- dossiers */
@@ -875,7 +1008,11 @@ async function creerDossier(ev) {
 /* --------------------------------------------------------------- affichage */
 
 async function afficher() {
-  const idx = await D.index();
+  // Les dossiers clos ne sont pas proposés : c'est là que se joue le
+  // non-croisement. Un dossier sélectionnable est un dossier dans lequel on
+  // peut verser par mégarde.
+  const idx = await D.lister();
+  if (dossierCourant && !idx.includes(dossierCourant)) dossierCourant = idx.at(-1) || null;
   const choix = $('choix-dossier');
   choix.textContent = '';
   for (const id of idx) {
@@ -887,6 +1024,9 @@ async function afficher() {
   }
   choix.hidden = idx.length < 2;
   if (dossierCourant) choix.value = dossierCourant;
+
+  const clos = await D.lister({ etat: 'corbeille' });
+  $('corbeille').textContent = clos.length ? `Corbeille (${clos.length})` : 'Corbeille';
 
   majBoutons();
 
@@ -1019,6 +1159,11 @@ $('form-dossier').addEventListener('submit', (ev) => garde(() => creerDossier(ev
 $('exporter').addEventListener('click', () => { $('form-export').hidden = false; });
 $('annuler-export').addEventListener('click', () => { $('form-export').hidden = true; });
 
+$('clore').addEventListener('click', () => garde(clore));
+$('corbeille').addEventListener('click', () => garde(ouvrirCorbeille));
+$('vider-corbeille').addEventListener('click', () => garde(viderCorbeille));
+$('annuler-corbeille').addEventListener('click', () => { $('form-corbeille').hidden = true; });
+
 $('form-motif').addEventListener('submit', (ev) => { ev.preventDefault(); fermerMotif($('f-motif').value.trim()); });
 $('annuler-motif').addEventListener('click', () => fermerMotif(''));
 
@@ -1050,7 +1195,7 @@ api.runtime.onMessage.addListener((msg) => {
 
 garde(async () => {
   await rafraichirPermissions();
-  const idx = await D.index();
+  const idx = await D.lister();
   dossierCourant = idx.at(-1) || null;
   await suivreOnglet();
   await afficher();
