@@ -28,6 +28,7 @@
     <button id="etape-11">11 · Rétroaction</button>
     <button id="exporter">Exporter</button>
     <button id="reglages">Modèle…</button>
+    <button id="reglages-prisme">PRISME…</button>
     <button id="nouveau">Nouveau dossier</button>
     <button id="clore">Clore le dossier</button>
     <button id="corbeille">Corbeille</button>
@@ -157,6 +158,32 @@
     </div>
   </form>
 
+  <section id="zone-prisme" class="panneau" hidden>
+    <h2>Verser une prédiction dans PRISME</h2>
+    <p class="note">Constat transmet une hypothèse ACH. Vous fixez le pari. PRISME le reçoit dans sa file de validation ; son plugin dédié calculera les scores après résolution.</p>
+    <form id="form-prisme-reglages">
+      <label for="prisme-adresse">Adresse locale de PRISME</label>
+      <input id="prisme-adresse" type="url" value="http://127.0.0.1:5000" required>
+      <label for="prisme-cle">Clé d’agent PRISME (lecture et proposition)</label>
+      <input id="prisme-cle" type="password" autocomplete="off" spellcheck="false" required>
+      <label class="case"><input id="prisme-memoriser" type="checkbox"> Mémoriser la clé dans Firefox (non chiffrée)</label>
+      <p class="note">Sans cette option, la clé est conservée seulement pendant l’ouverture du panneau. Elle ne figure ni dans le dossier ni dans ses exports. L’accès au serveur local est demandé sur votre clic.</p>
+      <button id="prisme-tester" type="submit">Tester et enregistrer la connexion</button>
+    </form>
+    <p id="prisme-etat" role="status" aria-live="polite"></p>
+    <form id="form-prisme-pari" hidden>
+      <p id="prisme-source" class="note"></p>
+      <label for="prisme-titre">Titre de la prédiction</label><input id="prisme-titre" maxlength="200" required>
+      <label for="prisme-enonce">Événement prédit</label><input id="prisme-enonce" maxlength="4000" required>
+      <label for="prisme-probabilite">Votre probabilité (de 0 à 1)</label><input id="prisme-probabilite" type="number" min="0" max="1" step="any" required>
+      <label for="prisme-echeance">Date butoir</label><input id="prisme-echeance" type="date" required>
+      <label for="prisme-critere_resolution">Condition vérifiable de résolution</label><input id="prisme-critere_resolution" maxlength="4000" required>
+      <label for="prisme-domaine">Domaine (facultatif)</label><input id="prisme-domaine" maxlength="4000">
+      <p class="note">Aucune probabilité ni condition de résolution n’est préremplie par le modèle. Pour la calibration, copiez ensuite le pari dans PRISME avant sa date butoir et avant de connaître son résultat.</p>
+      <div class="actions"><button id="prisme-envoyer" type="submit" class="principal">Déposer dans la file PRISME</button><button id="prisme-annuler" type="button">Annuler le versement</button></div>
+    </form>
+    <button id="prisme-fermer" type="button">Fermer</button>
+  </section>
   <main id="corps"></main>
 
   <script type="module" src="panel.js"></script>

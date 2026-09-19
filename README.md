@@ -9,7 +9,8 @@ que vous lisez.
 
 Aucun compte, aucun serveur, aucune collecte automatique. Les seuls appels
 réseau sortants sont ceux que vous déclenchez, vers le fournisseur de modèle et
-le moteur de recherche de votre choix, avec vos propres clés.
+le moteur de recherche de votre choix, avec vos propres clés, et facultativement
+vers votre PRISME local sur un geste explicite de versement.
 
 ---
 
@@ -328,6 +329,13 @@ Elles sont dans le README parce qu'elles sont dans le code, pas l'inverse.
 - aucun compte, aucun serveur, aucune télémétrie.
 
 ---
+
+## Verser une hypothèse dans PRISME
+
+Après validation d'une ACH complète, **Verser comme prédiction dans PRISME** ouvre
+un formulaire : vous fixez la probabilité, la date butoir et la condition de résolution.
+La proposition rejoint la file de validation PRISME via une clé d'agent ; les scores
+restent dans son plugin de calibration. [Configuration et vérifications](docs/PRISME.md).
 
 ## Licence
 

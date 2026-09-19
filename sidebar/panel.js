@@ -11,6 +11,7 @@
 //     accordées, tenues à jour en continu, pour que le gestionnaire puisse
 //     décider sans attendre.
 
+import { installerPrisme } from './prisme.js';
 import { Dossiers } from '../core/dossier.js';
 import { stockageNavigateur } from '../core/stockage.js';
 import { extraire } from '../core/extraction.js';
@@ -96,6 +97,8 @@ async function garde(fn) {
     console.error('[Constat]', e);
   }
 }
+
+const prisme = installerPrisme({ api, dossiers: D, courant: () => dossierCourant, etat });
 
 /* ------------------------------------------------- suivi de l'onglet actif */
 
@@ -1082,7 +1085,8 @@ async function afficher() {
   }
   if (parNumero.size) {
     corps.append(rendreEtapes([...parNumero.values()].sort((a, b) => a.numero - b.numero),
-      (ts) => garde(() => validerEtapeUtilisateur(ts))));
+      (ts) => garde(() => validerEtapeUtilisateur(ts)),
+      (e, id) => garde(() => prisme.ouvrir(dossierCourant, e, id))));
   }
 }
 
