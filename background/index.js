@@ -97,3 +97,13 @@ api.runtime.onMessage.addListener((msg) => {
   if (msg?.type !== 'appel-llm') return undefined;
   return relayer(msg);
 });
+
+// Versement PRISME : canal distinct, aucune écriture directe dans le vault.
+api.runtime.onConnect.addListener((port) => {
+  if (port.name !== 'constat-prisme' || port.sender?.id !== api.runtime.id) return;
+  port.onMessage.addListener(async (msg) => {
+    if (msg?.type !== 'appel-prisme') return;
+    const reponse = await globalThis.constatPrismeRelayer(msg);
+    try { port.postMessage(reponse); } catch { /* panneau fermé ; pas de renvoi */ }
+  });
+});

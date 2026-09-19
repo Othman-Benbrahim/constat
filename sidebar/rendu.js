@@ -343,7 +343,7 @@ const NOTE_ACH = 'Classement calculé à partir de la matrice, sur le nombre de 
   + 'INCOMPATIBLES. L’hypothèse en tête n’est pas la mieux étayée : c’est celle que le '
   + 'corpus réfute le moins.';
 
-function rendreACH(sortie) {
+function rendreACH(sortie, surPredire) {
   const d = el('div');
   d.append(el('p', { class: 'provenance', text: NOTE_ACH }));
 
@@ -363,8 +363,16 @@ function rendreACH(sortie) {
 
   d.append(listeCourte(sortie.classement.map((c, i) => `${i + 1}. ${c.id} (${c.role}) — `
     + `${c.incompatibles} incompatible(s), ${c.compatibles} compatible(s)`), 7));
-  d.append(listeCourte(sortie.hypotheses.map((h) => `${h.id} ${h.enonce} — `
-    + `confirmerait : ${h.confirmerait} — démolirait : ${h.demolirait}`), 7));
+  for (const h of sortie.hypotheses) {
+    const bloc = el('div', { class: 'bloc-lecture' });
+    bloc.append(el('p', { text: `${h.id} ${h.enonce} — confirmerait : ${h.confirmerait} — démolirait : ${h.demolirait}` }));
+    if (surPredire) {
+      const b = el('button', { type:'button', text:'Verser comme prédiction dans PRISME' });
+      b.addEventListener('click', () => surPredire(h.id));
+      bloc.append(b);
+    }
+    d.append(bloc);
+  }
   return d;
 }
 
@@ -463,7 +471,7 @@ function rendreRetroaction(sortie) {
   return d;
 }
 
-export function rendreEtapes(etapes, surValider) {
+export function rendreEtapes(etapes, surValider, surPredire) {
   const sec = el('section', { class: 'lecture etapes' });
   sec.append(el('h3', { text: 'Pipeline OSINT' }));
 
@@ -478,7 +486,7 @@ export function rendreEtapes(etapes, surValider) {
     }));
 
     if (e.numero === 4) bloc.append(rendreTriple(e.sortie));
-    else if (e.numero === 5) bloc.append(rendreACH(e.sortie));
+    else if (e.numero === 5) bloc.append(rendreACH(e.sortie, e.validee && e.complet && surPredire ? (id) => surPredire(e, id) : null));
     else if (e.numero === 7) bloc.append(rendreScenarios(e.sortie));
     else if (e.numero === 8) bloc.append(rendreRisque(e.sortie));
     else if (e.numero === 9) bloc.append(rendreRecommandations(e.sortie));

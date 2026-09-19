@@ -378,3 +378,8 @@ a.titre-source {
 }
 a.titre-source:hover { border-bottom-color: var(--encre); }
 a.titre-source:focus-visible { outline: 2px solid var(--encre); outline-offset: 2px; }
+
+/* PRISME : formulaire local dans le panneau, sans popup Firefox. */
+#zone-prisme form{margin:12px 0}#zone-prisme .case{display:flex;align-items:center;gap:6px}
+#zone-prisme input[type=checkbox]{width:auto}#zone-prisme input{box-sizing:border-box;max-width:100%}
+#prisme-source,#prisme-etat{overflow-wrap:anywhere}#prisme-etat.erreur{color:var(--ocre)}

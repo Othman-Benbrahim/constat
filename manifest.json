@@ -17,6 +17,7 @@
   },
   "background": {
     "scripts": [
+      "background/prisme.js",
       "background/index.js"
     ]
   },
